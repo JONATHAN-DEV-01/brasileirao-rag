@@ -66,64 +66,69 @@ def obter_vectorstore() -> Chroma:
     Também é cacheado com @st.cache_resource para não reindexar a
     cada rerun do Streamlit.
 
-    Fluxo de decisão:
-      1. Obtém os embeddings (já cacheados em _obter_embeddings).
-      2. Calcula o fingerprint atual dos arquivos Markdown.
-      3. Compara com o fingerprint salvo no disco.
-      4. Se igual e índice existe → carrega (rápido, sem processar nada).
-      5. Se diferente ou índice ausente → (re)indexa tudo.
+    Comportamento inteligente por ambiente:
+      - Local       : persiste o índice no disco (CHROMA_DIR). Rereboots são rápidos.
+      - Streamlit Cloud : disco efêmero → usa Chroma in-memory. O índice é
+                      recriado 1x na inicialização e mantido vivo no cache.
 
     Returns:
         Instância do Chroma carregada e pronta para consultas.
     """
-    # Embeddings carregados do cache — sem custo na segunda chamada em diante
     embeddings = _obter_embeddings()
 
-    fingerprint_atual = _calcular_fingerprint()
-    fingerprint_salvo = ""
+    # Detecta se está no Streamlit Cloud (não tem disco persistente)
+    is_cloud = os.environ.get("STREAMLIT_SHARING_MODE") or not os.access(".", os.W_OK)
 
-    if os.path.exists(_FINGERPRINT_FILE):
-        with open(_FINGERPRINT_FILE, "r", encoding="utf-8") as f:
-            fingerprint_salvo = f.read().strip()
+    # ── Modo LOCAL: persiste no disco ──────────────────────────────────────
+    if not is_cloud:
+        fingerprint_atual = _calcular_fingerprint()
+        fingerprint_salvo = ""
 
-    indice_existe = (
-        os.path.exists(CHROMA_DIR)
-        and any(f for f in os.listdir(CHROMA_DIR) if not f.startswith("."))
-        if os.path.exists(CHROMA_DIR)
-        else False
-    )
-    indice_atualizado = fingerprint_atual == fingerprint_salvo
+        if os.path.exists(_FINGERPRINT_FILE):
+            with open(_FINGERPRINT_FILE, "r", encoding="utf-8") as f:
+                fingerprint_salvo = f.read().strip()
 
-    # Índice presente e atualizado → apenas carrega (caminho mais comum e rápido)
-    if indice_existe and indice_atualizado:
-        return Chroma(persist_directory=CHROMA_DIR, embedding_function=embeddings)
+        indice_existe = (
+            os.path.exists(CHROMA_DIR)
+            and any(f for f in os.listdir(CHROMA_DIR) if not f.startswith("."))
+            if os.path.exists(CHROMA_DIR)
+            else False
+        )
+        indice_atualizado = fingerprint_atual == fingerprint_salvo
 
-    # Índice desatualizado → avisa e recria
-    if indice_existe and not indice_atualizado:
-        st.info("🔄 Bases de Conhecimento (MD) atualizadas — recriando índice...")
-        shutil.rmtree(CHROMA_DIR, ignore_errors=True)
-    elif not indice_existe:
-        st.info("📊 Primeira execução: indexando dados (Markdown)...")
+        if indice_existe and indice_atualizado:
+            return Chroma(persist_directory=CHROMA_DIR, embedding_function=embeddings)
 
-    documentos = carregar_todos_arquivos()
+        if indice_existe and not indice_atualizado:
+            st.info("🔄 Bases de Conhecimento (MD) atualizadas — recriando índice...")
+            shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+        elif not indice_existe:
+            st.info("📊 Primeira execução: indexando dados (Markdown)...")
 
-    if not documentos:
-        raise ValueError(
-            "Nenhum documento foi gerado a partir dos arquivos. "
-            "Verifique se os arquivos .md estão corretos."
+        documentos = carregar_todos_arquivos()
+        if not documentos:
+            raise ValueError("Nenhum documento foi gerado. Verifique os arquivos .md.")
+
+        vectorstore = Chroma.from_documents(
+            documents=documentos,
+            embedding=embeddings,
+            persist_directory=CHROMA_DIR,
         )
 
-    # Não precisamos do RecursiveCharacterTextSplitter!
-    # O MarkdownHeaderTextSplitter (no loader.py) já faz fatias semânticas perfeitas.
-    vectorstore = Chroma.from_documents(
+        os.makedirs(CHROMA_DIR, exist_ok=True)
+        with open(_FINGERPRINT_FILE, "w", encoding="utf-8") as f:
+            f.write(fingerprint_atual)
+
+        return vectorstore
+
+    # ── Modo CLOUD: in-memory (sem disco persistente) ──────────────────────
+    st.info("☁️ Modo Cloud: indexando dados em memória...")
+    documentos = carregar_todos_arquivos()
+    if not documentos:
+        raise ValueError("Nenhum documento foi gerado. Verifique os arquivos .md.")
+
+    return Chroma.from_documents(
         documents=documentos,
         embedding=embeddings,
-        persist_directory=CHROMA_DIR,
     )
 
-    # Salva o fingerprint para detectar futuras atualizações
-    os.makedirs(CHROMA_DIR, exist_ok=True)
-    with open(_FINGERPRINT_FILE, "w", encoding="utf-8") as f:
-        f.write(fingerprint_atual)
-
-    return vectorstore
