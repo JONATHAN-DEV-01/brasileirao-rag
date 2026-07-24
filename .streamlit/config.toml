@@ -1,0 +1,26 @@
+[theme]
+# ============================================================
+# Tema visual da aplicação Streamlit - Brasileirão RAG
+# ============================================================
+
+# Cor primária (botões, sliders, destaques interativos)
+primaryColor = "#8b55d8"
+
+# Cor de fundo principal (azul escuro)
+backgroundColor = "#0d3145"
+
+# Cor de fundo dos componentes secundários (sidebar, inputs)
+secondaryBackgroundColor = "#0a2538"
+
+# Cor do texto principal (branco para contraste)
+textColor = "#f0f0f0"
+
+# Fonte utilizada
+font = "sans serif"
+
+[server]
+# ============================================================
+# Desabilita o file watcher para evitar avisos de módulos
+# opcionais do transformers (ex: torchvision) no log
+# ============================================================
+fileWatcherType = "none"

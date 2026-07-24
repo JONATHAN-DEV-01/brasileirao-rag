@@ -1,0 +1,14 @@
+langchain
+langchain-core
+langchain-text-splitters
+langchain-community
+langchain-groq
+langchain-google-genai
+langchain-huggingface
+langchain-chroma
+chromadb
+sentence-transformers
+streamlit
+pandas
+openpyxl
+python-dotenv

@@ -1,0 +1,37 @@
+# ============================================================
+# .gitignore - Brasileirão RAG System
+# ============================================================
+
+# Variáveis de ambiente com chaves de API (NUNCA commitar)
+.env
+
+# Diretório do Vector Store (gerado automaticamente pelo Chroma)
+chroma_brasileirao/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+.env/
+
+# IDEs e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dados brutos (opcional - remova se quiser versionar a planilha)
+# brasileirao_serie_a_2025.xlsx
